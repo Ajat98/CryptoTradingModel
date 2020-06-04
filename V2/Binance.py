@@ -7,8 +7,8 @@ import time
 
 #Binance Keys
 binance_keys = {
-    'api_key':'xF4ojJNOkRh91koFFz44vYHJSs2qMOn30lS6VOqPDV8ARLX7TByiTJhrH3PxQDnK',
-    'api_secret': '0jE5DhH8FUmg1ffNJaQsPezxaQAHnNaa8HZIsh6i5EWmmcjjIp2tv5NZ3wcS4tXi'
+    'api_key':'',
+    'api_secret': ''
 }
  
 
