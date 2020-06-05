@@ -1,3 +1,4 @@
+
 import pandas as pd
 import requests
 import json
@@ -13,7 +14,7 @@ class TradeModel:
     def __init__(self, symbol):
         self.symbol = symbol
         self.exchange = Binance()
-        self.df = self.exchange.get_symbol_data(symbol, '1h')
+        self.df = self.exchange.get_symbol_data(symbol, '4h')
         self.last_price = self.df['close'][len(self.df['close']) -1]
         self.buy_signals = []
 
@@ -26,36 +27,6 @@ class TradeModel:
             print(e)
             return None
 
-    '''
-    def getData(self):
-        #Creating the url
-        base = 'https://api.binance.com' #base endpoint
-        endpoint = '/api/v1/klines' #candlestick data
-        params = '?&symbol=' + self.symbol + '&interval=1h'
-        url = base + endpoint + params
-
-        #download data
-        data = requests.get(url)
-        dictionary = json.loads(data.text)
-        #Create df from data
-        df = pd.DataFrame.from_dict(dictionary)
-        df = df.drop(range(6, 12), axis=1)
-
-        #Only the columns we want
-        col_names = ['time', 'open', 'high', 'low', 'close', 'volume']
-        df.columns = col_names
-        
-        #Convert str to floats
-        for c in col_names:
-            df[c] = df[c].astype(float)
-        #Add moving averages
-        df['short_sma'] = sma(df['close'].tolist(), 10)
-        df['long_sma'] = sma(df['close'].tolist(), 30)
-
-
-        #print(df)
-        return df
-    '''
     #Adding a simple strategy
     def strategy(self):
         df = self.df
@@ -66,12 +37,13 @@ class TradeModel:
             if df['long_sma'][i] > df['low'][i] and (df['long_sma'][i] - df['low'][i]) > 0.03 * df['low'][i]:
                 buy_signals.append([df['time'][i], df['low'][i]])
 
-        self.plot_data(buy_signals=buy_signals)
+        self.plot_data(buy_signals = buy_signals)
 
     #Simple candlestick chart
     def plot_data(self, buy_signals=False):
         df = self.df
 
+        #Plotting candlesticks
         candle = pgo.Candlestick(
             x=df['time'],
             open=df['open'],
@@ -94,12 +66,12 @@ class TradeModel:
             line= dict(color=('rgba(255,207,102,50)')))
 
         lowbb = pgo.Scatter(
-        x=df['time'],
-        y=df['low_boll'],
-        name='Lower Bollinger Band',
-        line= dict(color=('rgba(255,102,207,50)')))
+            x=df['time'],
+            y=df['low_boll'],
+            name='Lower Bollinger Band',
+            line= dict(color=('rgba(255,102,207,50)')))
 
-        data = [candle, lsma, ssma, lowbb]
+        data = [candle, ssma, lsma, lowbb]
 
         #plots buy signals if parameter is passed
         if buy_signals:
@@ -107,7 +79,7 @@ class TradeModel:
                 x = [i[0] for i in buy_signals],
                 y = [i[1] for i in buy_signals],
                 name = "BUY SIGNALS",
-                mode = "markers" #for dots not line
+                mode = "markers", #for dots not line
             )
             
 
@@ -116,7 +88,7 @@ class TradeModel:
                 x = [i[0] for i in buy_signals],
                 y = [i[1]*1.05 for i in buy_signals],
                 name = "SELL SIGNALS",
-                mode = "markers" #for dots not line
+                mode = "markers", #for dots not line
             )
 
             data = [candle, lsma, ssma, buys, sells]
@@ -125,13 +97,13 @@ class TradeModel:
         layout = pgo.Layout(title = self.symbol)
         fig = pgo.Figure(data=data, layout=layout)
 
-        plot(fig, filename=self.symbol +'.html')
+        plot(fig, filename=self.symbol+'.html')
 
     def maStrategy(self, i:int):
         #If price is 10% below long sma, put buy signal and return True
 
         df = self.df
-        buy_price = 0.8 * df['long_sma'][i]
+        buy_price = 0.9 * df['long_sma'][i]
         if buy_price >= df['close'][i]:
             self.buy_signals.append([df['time'][i], df['close'][i], df['close'][i] * 1.045])
             return True
@@ -142,25 +114,26 @@ class TradeModel:
         #if price 2% below lower bollinger, return True
         df = self.df
         buy_price = 0.98 * df['low_boll'][i]
-        if buy_price >=df['close'][i]:
+        if buy_price >= df['close'][i]:
             self.buy_signals.append([df['time'][i], df['close'][i], df['close'][i] * 1.045])
             return True
         
         return False
+
 
 def Main():
    exchange = Binance()
    symbols = exchange.get_trade_symbols()
 
    for symbol in symbols:
-        #print(symbol)
+        print(symbol)
         
         model = TradeModel(symbol)
         plot = False
 
-        # if model.maStrategy(len(model.df['close'])-1):
-        #    print('MA Strategy match on:' + symbol)
-        #    plot = True
+        if model.maStrategy(len(model.df['close'])-1):
+            print('MA Strategy match on:' + symbol)
+            plot = True
        
         if model.bollStrategy(len(model.df['close'])-1):
            print('Boll Strategy match on: ' + symbol)
