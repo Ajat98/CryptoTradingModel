@@ -1,3 +1,4 @@
+
 import json
 import requests
 import pandas as pd
@@ -7,8 +8,8 @@ import time
 
 #Binance Keys
 binance_keys = {
-    'api_key':'',
-    'api_secret': ''
+    'api_key':'API KEY HERE',
+    'api_secret': 'API SECRET HERE'
 }
  
 
@@ -38,6 +39,7 @@ class Binance:
             return []
 
         all_symbols = []
+
         for pair in data['symbols']:
             if pair['status'] == 'TRADING':
                 all_symbols.append(pair['symbol'])
@@ -50,8 +52,6 @@ class Binance:
 
         #download data
         data = requests.get(url)
-        #print(data)
-        #print(data.txt)
         dictionary = json.loads(data.text)
 
         #Create df from data
@@ -182,5 +182,5 @@ class Binance:
     def signRequest(self, params:dict):
         query_string = '&'.join(["{}={}".format(d, params[d]) for d in params])
         #Research dis line
-        signature = hmac.new(binance_keys['secret_key'].encode('utf-8'), query_string.encode('utf-8'), hash.sha256)
+        signature = hmac.new(binance_keys['secret_key'].encode('utf-8'), query_string.encode('utf-8'), hashlib.sha256)
         params['signature'] = signature.hexdigest()
