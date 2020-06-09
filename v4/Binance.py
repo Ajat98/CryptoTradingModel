@@ -6,10 +6,7 @@ import hmac
 import time
 
 #Binance Keys
-binance_keys = {
-    'api_key':'API KEY HERE',
-    'api_secret': 'API SECRET HERE'
-}
+#Will use new txt file to store API access info 
  
 
 class Binance:
