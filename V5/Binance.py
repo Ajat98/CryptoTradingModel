@@ -1,403 +1,419 @@
+import requests 
 import json
-import requests
-import pandas as pd
 import decimal
 import hmac
 import time
+import pandas as pd
 import hashlib
 from decimal import Decimal
 
-#Start at 0, increment by 2000 if getting errors
-#Tells binance that request was sent later than actually was
+# I will show you how exactly to get these API Keys
+# But first, let's update our function that gets the candlestick data 
+# to get more than just the limit of 1000 candles. It will be useful
+# in case we want to backtest our strategies over a longer period
+
 request_delay = 1000
 
 class Binance:
-    #Constants
-    ORDER_STATUS_NEW = 'NEW'
-    ORDER_STATUS_PARTIALLY_FILLED = 'PARTIALLY_FILLED'
-    ORDER_STATUS_FILLED = 'FILLED'
-    ORDER_STATUS_CANCELLED = 'CANCELLED'
-    ORDER_STATUS_PENDING_CANCEL = 'PENDING_CANCEL'
-    ORDER_STATUS_REJECTED = 'REJECTED'
-    ORDER_STATUS_EXPIRED = 'EXPIRED'
 
-    SIDE_BUY = 'BUY'
-    SIDE_SELL = 'SELL'
+	ORDER_STATUS_NEW = 'NEW'
+	ORDER_STATUS_PARTIALLY_FILLED = 'PARTIALLY_FILLED'
+	ORDER_STATUS_FILLED = 'FILLED'
+	ORDER_STATUS_CANCELED = 'CANCELED'
+	ORDER_STATUS_PENDING_CANCEL = 'PENDING_CANCEL'
+	ORDER_STATUS_REJECTED = 'REJECTED'
+	ORDER_STATUS_EXPIRED = 'EXPIRED'
 
-    ORDER_TYPE_LIMIT = 'LIMIT'
-    ORDER_TYPE_MARKET = 'MARKET'
-    ORDER_TYPE_STOP_LOSS = 'STOP_LOSS'
-    ORDER_TYPE_STOP_LOSS_LIMIT = 'STOP_LOSS_LIMIT'
-    ORDER_TYPE_TAKE_PROFIT = 'TAKE_PROFIT'
-    ORDER_TYPE_TAKE_PROFIT_LIMIT = 'TAKE_PROFIT_LIMIT'
-    ORDER_TYPE_LIMIT_MAKER = 'LIMIT_MAKER'
+	SIDE_BUY = 'BUY'
+	SIDE_SELL = 'SELL'
 
-    KLINE_INTERVALS = ['1m', '3m', '5m', '15m', '30m', '1h', '2h', '4h', '6h', '8h', '12h', '1d', '3d', '1w', '1M']
+	ORDER_TYPE_LIMIT = 'LIMIT'
+	ORDER_TYPE_MARKET = 'MARKET'
+	ORDER_TYPE_STOP_LOSS = 'STOP_LOSS'
+	ORDER_TYPE_STOP_LOSS_LIMIT = 'STOP_LOSS_LIMIT'
+	ORDER_TYPE_TAKE_PROFIT = 'TAKE_PROFIT'
+	ORDER_TYPE_TAKE_PROFIT_LIMIT = 'TAKE_PROFIT_LIMIT'
+	ORDER_TYPE_LIMIT_MAKER = 'LIMIT_MAKER'
 
-    def __init__(self, filename=None):
-        self.base = 'https://api.binance.com'
+	KLINE_INTERVALS = ['1m', '3m', '5m', '15m', '30m', '1h', '2h', '4h', '6h', '8h', '12h', '1d', '3d', '1w', '1M']
 
-        #Every endpoint of the API that will be used
-        self.endpoints = {
-            'order': '/api/v3/order',
-            'testOrder' : '/api/v3/order/test',
-            'allOrders' : '/api/v3/allOrders',
-            'klines' : '/api/v3/klines',
-            'exchangeInfo': '/api/v3/exchangeInfo',
-            '24hrTicker' : '/api/v3/ticker/24hr',
-            'averagePrice': '/api/v3/avgPrice',
-            'orderBook' : '/api/v3/depth',
-            'account' : '/api/v3/account'
-        }
-        self.account_access = False
+	def __init__(self, filename=None):
 
-        #Read in credentials from txt file
-        if filename == None:
-            return
+		self.base = 'https://api.binance.com'
 
-        f = open(filename, 'r')
-        contents = []
-        if f.mode == 'r':
-            contents = f.read().split('\n')
+		self.endpoints = {
+			"order": '/api/v3/order',
+			"testOrder": '/api/v3/order/test',
+			"allOrders": '/api/v3/allOrders',
+			"klines": '/api/v3/klines',
+			"exchangeInfo": '/api/v3/exchangeInfo',
+			"24hrTicker" : '/api/v3/ticker/24hr',
+			"averagePrice" : '/api/v3/avgPrice',
+			"orderBook" : '/api/v3/depth',
+			"account" : '/api/v3/account'
+		}
+		self.account_access = False
 
-        self.binance_keys = dict(api_key = contents[0], api_secret = contents[1])
-        self.headers = {'X-MBX-APIKEY': self.binance_keys['api_key']}
-        self.account_access = True
+		if filename == None:
+			return
+	
+		f = open(filename, "r")
+		contents = []
+		if f.mode == 'r':
+			contents = f.read().split('\n')
 
-    def _get(self, url, params=None, headers=None) -> dict:
-        #Will make a get request
-        try:
-            response = requests.get(url, params=params, headers=headers)
-            data = json.loads(response.text)
-            data['url'] = url
-        except Exception as e:
-            print('Error occured during access to: ' +url)
-            print(e)
-            data = {'code' : '-1', 'url' : url, 'msg':e}
-        return data
-        
-    def _post(self, url, params=None, headers=None) -> dict:
-        #Function to make a post request
-        try:
-            response = requests.post(url, params=params, headers=headers)
-            data = json.loads(response.text)
-            data['url'] = url
-        except Exception as e:
-            print('Error occured during access to: ' +url)
-            print(e)
-            data = {'code' : '-1', 'url' : url, 'msg':e}
-        return data
+		self.binance_keys = dict(api_key = contents[0], secret_key=contents[1])
 
+		self.headers = {"X-MBX-APIKEY": self.binance_keys['api_key']}
 
-    #Find all current symbols tradable on binance
-    def getTradeSymbols(self, quoteAssets:list=None):
-        url = self.base + self.endpoints['exchangeInfo']
-        data = self._get(url)
-        if data.__contains__('code'):
-            return []
+		self.account_access = True
+	
+	def _get(self, url, params=None, headers=None) -> dict:
+		""" Makes a Get Request """
+		try: 
+			response = requests.get(url, params=params, headers=headers)
+			data = json.loads(response.text)
+			data['url'] = url
+		except Exception as e:
+			print("Exception occured when trying to access "+url)
+			print(e)
+			data = {'code': '-1', 'url':url, 'msg': e}
+		return data
 
-        symbols_list = []
-        for pair in data['symbols']:
-            if pair['status'] == 'TRADING':
-                if quoteAssets != None and pair['quoteAsset'] in quoteAssets:
-                    symbols_list.append(pair['symbol'])
+	def _post(self, url, params=None, headers=None) -> dict:
+		""" Makes a Post Request """
+		try: 
+			response = requests.post(url, params=params, headers=headers)
+			data = json.loads(response.text)
+			data['url'] = url
+		except Exception as e:
+			print("Exception occured when trying to access "+url)
+			print(e)
+			data = {'code': '-1', 'url':url, 'msg': e}
+		return data
 
-        return symbols_list
+	def GetTradingSymbols(self, quoteAssets:list=None):
+		''' Gets All symbols which are tradable (currently) '''
+		url = self.base + self.endpoints["exchangeInfo"]
+		data = self._get(url)
+		if data.__contains__('code'):
+			return []
 
-    def getSymbolDataOfSymbols(self, symbols:list=None):
-        #Get all tradeable symbols at the time of function call
+		symbols_list = []
+		for pair in data['symbols']:
+			if pair['status'] == 'TRADING':
+				if quoteAssets != None and pair['quoteAsset'] in quoteAssets:
+					symbols_list.append(pair['symbol'])
 
-        url = self.base + self.endpoints['exchangeInfo']
-        data = self._get(url)
-        if data.__contains__('code'):
-            return []
+		return symbols_list
 
-        symbols_list = []
-        for pair in data['symbols']:
-            if pair['status'] == 'TRADING':
-                if symbols != None and pair['symbol'] in symbols:
-                    symbols_list.append(pair)
-        
-        return symbols_list
+	def GetSymbolDataOfSymbols(self, symbols:list=None):
+		''' Gets All symbols which are tradable (currently) '''
+		url = self.base + self.endpoints["exchangeInfo"]
+		data = self._get(url)
+		if data.__contains__('code'):
+			return []
 
-    def getSymbolKlinesExtra(self, symbol:str, interval:str, limit:int=1000, end_time=False):
-        #Will call getSymbolData as many times as needed
-        #To get historical data based on limit parameter
-        #Merge results into one df
+		symbols_list = []
 
-        repeat_rounds = 0
-        if limit > 1000:
-            repeat_rounds = int(limit/1000)
+		for pair in data['symbols']:
+			if pair['status'] == 'TRADING':
+				if symbols != None and pair['symbol'] in symbols:
+					symbols_list.append(pair)
 
-        initial_limit = limit % 1000
-        if initial_limit == 0:
-            initial_limit = 1000
+		return symbols_list
 
-        #get last initial_limit candles first, start and end_time
-        #and go backwards, if end_time False then start at present time
-        df = self.getSymbolKlines(symbol, interval, limit=initial_limit, end_time = end_time)
-        while repeat_rounds > 0:
-            #For every 1000 candles, grab them but starting from beginning of previous candle data
-            df2 = self.getSymbolKlines(symbol, interval, limit=1000, end_time = df['time'][0])
-            df = df2.append(df, ignore_index = True)
-            repeat_rounds = repeat_rounds -1
+	def GetSymbolKlinesExtra(self, symbol:str, interval:str, limit:int=1000, end_time=False):
+		# Basicall, we will be calling the GetSymbolKlines as many times as we need 
+		# in order to get all the historical data required (based on the limit parameter)
+		# and we'll be merging the results into one long dataframe.
 
-        return df
+		repeat_rounds = 0
+		if limit > 1000:
+			repeat_rounds = int(limit/1000)
+		initial_limit = limit % 1000
+		if initial_limit == 0:
+			initial_limit = 1000
+		# First, we get the last initial_limit candles, starting at end_time and going
+		# backwards (or starting in the present moment, if end_time is False)
+		df = self.GetSymbolKlines(symbol, interval, limit=initial_limit, end_time=end_time)
+		while repeat_rounds > 0:
+			# Then, for every other 1000 candles, we get them, but starting at the beginning
+			# of the previously received candles.
+			df2 = self.GetSymbolKlines(symbol, interval, limit=1000, end_time=df['time'][0])
+			df = df2.append(df, ignore_index = True)
+			repeat_rounds = repeat_rounds - 1
+		
+		return df
 
-    def getAccountData(self) -> dict:
-        #get balances/account data
-        url = self.base + self.endpoints['account']
+	def GetAccountData(self) -> dict:
+		""" Gets Balances & Account Data """
 
-        params = {
-            'recvWindow' : 6000,
-            'timestamp' : int(round(time.time()*1000)) + request_delay 
-        }
-        self.signRequest(params)
+		url = self.base + self.endpoints["account"]
+		
+		params = {
+		'recvWindow': 6000,
+		'timestamp': int(round(time.time()*1000)) + request_delay
+		}
+		self.signRequest(params)
+		
+		return self._get(url, params, self.headers)
 
-        return self._get(url, params, self.headers)
+	def Get24hrTicker(self, symbol:str):
+		url = self.base + self.endpoints['24hrTicker'] + "?symbol="+symbol
+		return self._get(url)
 
-    def get24hrTicker(self, symbol:str):
-        url = self.base + self.endpoints['24hrTicker'] + "?symbol=" + symbol
-        return self._get(url)
+	def GetSymbolKlines(self, symbol:str, interval:str, limit:int=1000, end_time=False):
+		''' 
+		Gets trading data for one symbol 
+		
+		Parameters
+		--
+			symbol str:        The symbol for which to get the trading data
+			interval str:      The interval on which to get the trading data
+				minutes      '1m' '3m' '5m' '15m' '30m'
+				hours        '1h' '2h' '4h' '6h' '8h' '12h'
+				days         '1d' '3d'
+				weeks        '1w'
+				months       '1M;
+		'''
 
-    def getSymbolKlines(self, symbol:str, interval:str, limit:int=1000, end_time=False):
-        ''' Pull trading data for only 1 symbol
-        Parameters:
-            symbol str:     symbol to get trading data on
-            interval str:   interval to get trading data on
-                minutes -   '1m', '3m', '5m', '15m', '30m'
-                hours -     '1h', '2h', '4h', '6h', '8h', '12h'
-                days -      '1d', '3d'
-                weeks -     '1w'
-                months -    '1M'
-        '''
+		if limit > 1000:
+			return self.GetSymbolKlinesExtra(symbol, interval, limit, end_time)
+		
+		params = '?&symbol='+symbol+'&interval='+interval+'&limit='+str(limit)
+		if end_time:
+			params = params + '&endTime=' + str(int(end_time))
 
-        if limit > 1000:
-            return self.getSymbolKlinesExtra(symbol, interval, limit, end_time)
-        
-        params = '?&symbol=' + symbol + '&interval=' + interval + '&limit=' + str(limit)
-        if end_time:
-            params = params + '&endTime=' + str(int(end_time))
+		url = self.base + self.endpoints['klines'] + params
 
-        url = self.base + self.endpoints['klines'] + params
+		# download data
+		data = requests.get(url)
+		dictionary = json.loads(data.text)
 
-        #Downloading data
-        data = requests.get(url)
-        dictionary = json.loads(data.text)
-        #clean up and put in df
-        df = pd.DataFrame.from_dict(dictionary)
-        df = df.drop(range(6, 12), axis = 1)
-        #Rename cols
-        col_names = ['time', 'open', 'high', 'low', 'close', 'volume']
-        df.columns = col_names
-        #Convert col vals from str to float
-        for c in col_names:
-            df[c] = df[c].astype(float)
-        
-        df['date'] = pd.to_datetime(df['time'] * 1000000, infer_datetime_format = True)
-        return df
+		# put in dataframe and clean-up
+		df = pd.DataFrame.from_dict(dictionary)
+		df = df.drop(range(6, 12), axis=1)
 
-    def makeOrderFromDict(self, params, test:bool=False):
-        #creates order from params dict
+		# rename columns
+		col_names = ['time', 'open', 'high', 'low', 'close', 'volume']
+		df.columns = col_names
 
-        params['recvWindow'] = 5000
-        params['timestamp'] = int(round(time.time()*1000)) + request_delay
+		# transform values from strings to floats
+		for col in col_names:
+			df[col] = df[col].astype(float)
 
-        self.signRequest(params)
-        url = ''
-        if test:
-            url = self.base + self.endpoints['testOrder']
-        else:
-            url = self.base + self.endpoints['order']
+		df['date'] = pd.to_datetime(df['time'] * 1000000, infer_datetime_format=True)
 
-        return self._post(url, params, self.headers)
+		return df
+	
+	def PlaceOrderFromDict(self, params, test:bool=False):
+		""" Places order from params dict """
 
-    #Places an Order
-    def makeOrder(self, symbol:str, side:str, type:str, quantity:float=0, price:float=0, test:bool=True):
-        '''
-        Places order on Binance
-        In any pair, e.g. ETHBTC, the LHS is our base asset (ETH) which we buy, RHS is quote asset (what we sell for)
-        Params:
-            strs:
-                symbol: symbol to get trading data for
-                side: side of order, e.g. BUY or SELL
-                type: type of order, LIMIT, MARKET, or STOP_LOSS
-            floats:
-                quantity
-        '''
+		params['recvWindow'] = 5000
+		params['timestamp'] = int(round(time.time()*1000)) + request_delay
+		
+		self.signRequest(params)
+		url = ''
+		if test: 
+			url = self.base + self.endpoints['testOrder']
+		else:
+			url = self.base + self.endpoints['order']
+		return self._post(url, params, self.headers)
 
-        params = {
-            'symbol':symbol,
-            'side': side, #this means buy or sell
-            'type': type, #Market, Limit, Stop Loss, Margin etc.ArithmeticError
-            'quoteOrderQty':quantity,
-            'recvWindow':5000,
-            'timestamp': int(round(time.time()*1000)) + request_delay
-        }
+	def PlaceOrder(self, symbol:str, side:str, type:str, quantity:float=0, price:float=0, test:bool=True):
+		'''
+		Places an order on Binance
+		Parameters
+		--
+			symbol str:        The symbol for which to get the trading data
+			side str:          The side of the order 'BUY' or 'SELL'
+			type str:          The type, 'LIMIT', 'MARKET', 'STOP_LOSS'
+			quantity float:    .....
+		'''
 
-        #Checking for type of order
-        if type != 'MARKET':
-            params['timeInForce'] = 'GTC' 
-            params['price'] = Binance.floatToString(price)
+		params = {
+			'symbol': symbol,
+			'side': side, 			# BUY or SELL
+			'type': type,				# MARKET, LIMIT, STOP LOSS etc
+			'quoteOrderQty': quantity,
+			'recvWindow': 5000,
+			'timestamp': int(round(time.time()*1000)) + request_delay
+		}
 
-        self.signRequest(params)
+		if type != 'MARKET':
+			params['timeInForce'] = 'GTC'
+			params['price'] = Binance.floatToString(price)
 
-        url = ''
-        #Choosing between testOrder and Order endpoints
-        if test:
-            url = self.base + self.endpoints['testOrder']
-        else:
-            url = self.base + self.endpoints['order']
-        
-        return self._post(url, params=params, headers=self.headers)
+		self.signRequest(params)
 
-    def cancelOrder(self, symbol:str, orderId:str):
-        #Cancels an order on a symbol using orderId
+		url = ''
+		if test: 
+			url = self.base + self.endpoints['testOrder']
+		else:
+			url = self.base + self.endpoints['order']
 
-        params = {
-            'symbol':symbol,
-            'orderID':orderId,
-            'recvWindow':5000,
-            'timestamp': int(round(time.time()*1000)) + request_delay
-        }
-        self.signRequest(params)
+		return self._post(url, params=params, headers=self.headers)
 
-        url = self.base + self.endpoints['order']
-   
-        try:
-            response = requests.delete(url, params=params, headers=self.headers) 
-            data = response.text
-        except Exception as e:
-            print('Error occured during cancellation of order on: ', url)
-            print(e)
-            data = {'code': '-1', 'msg':e}
-            
-        return json.loads(data)
+	def CancelOrder(self, symbol:str, orderId:str):
+		'''
+			Cancels the order on a symbol based on orderId
+		'''
 
-    #Info about a particular order
-    def getOrderInfo(self, symbol:str, orderId:str,):
-        #Info about an order based on the orderId
-        params = {
-            'symbol':symbol,
-            'origClientOrderId': orderId,
-            'recvWindow': 5000,
-            'timestamp': int(round(time.time()*1000)) + request_delay 
-        }
-        self.signRequest(params)
+		params = {
+			'symbol': symbol,
+			'orderId' : orderId,
+			'recvWindow': 5000,
+			'timestamp': int(round(time.time()*1000)) + request_delay
+		}
 
-        url = self.base + self.endpoints['order']
+		self.signRequest(params)
 
-        return self._get(url, params=params, headers=self.headers)
+		url = self.base + self.endpoints['order']
 
+		try: 
+			response = requests.delete(url, params=params, headers=self.headers)
+			data = response.text
+		except Exception as e:
+			print("Exception occured when trying to cancel order on "+url)
+			print(e)
+			data = {'code': '-1', 'msg':e}
+		
+		return json.loads(data)
 
-    def getAllOrderInfo(self, symbol:str):
-        #Gets all orders on account for a symbol
-        params = {
-            'symbol':symbol,
-            'timestamp': int(round(time.time()*1000)) + request_delay
-        }
-        self.signRequest(params)
+	def GetOrderInfo(self, symbol:str, orderId:str):
+		'''
+			Gets info about an order on a symbol based on orderId
+		'''
 
-        url = self.base + self.endpoints['allOrders']
-        
-        try:
-            response = requests.get(url, params=params, headers=self.headers)
-            data=response.text
-        except Exception as e:
-            print('Error occured during get info on all orders on: ' + url)
-            print(e)
-            data = {'code': '-1', 'msg': e}
+		params = {
+			'symbol': symbol,
+			'origClientOrderId' : orderId,
+			'recvWindow': 5000,
+			'timestamp': int(round(time.time()*1000)) + request_delay
+		}
 
-        return json.loads(data)
+		self.signRequest(params)
 
+		url = self.base + self.endpoints['order']
 
-    
-    def signRequest(self, params:dict):
-        #Signs any request to Binance API
-        query_string = '&'.join(["{}={}".format(d, params[d]) for d in params])
-        #Research dis line
-        signature = hmac.new(self.binance_keys['api_secret'].encode('utf-8'), query_string.encode('utf-8'), hashlib.sha256)
-        params['signature'] = signature.hexdigest()
+		return self._get(url, params=params, headers=self.headers)
 
-    #Convert float to a string, avoids scientific notation
-    @classmethod
-    def floatToString(cls, f:float):
-        ctx = decimal.Context()
-        ctx.prec = 12
-        d1 = ctx.create_decimal(repr(f))
-        return format(d1, 'f')
-    
+	def GetAllOrderInfo(self, symbol:str):
+		'''
+			Gets info about all order on a symbol
+		'''
 
-    #Functions for rounding prices/quantities to send to exchange, fit requirements of pair being traded
-    @classmethod
-    def get10Factor(cls, num):
-        #Return num of 0s before first non-0 digit of a num
-        #if abs(num) is less than 1 or negative num of digits between first int digit and last
-        #integer digit if abs(num) >= 1
-        #e.g. get10factor(0.00000164763) = 6
-        #e.g. get10factor(1600623.3) = -6
+		params = {
+			'symbol': symbol,
+			'timestamp': int(round(time.time()*1000)) + request_delay
+		}
 
-        p = 0
-        for i in range(-20, 20):
-            if num == num % 10**i:
-                p = -(i - 1)
-                break
-        return p
-    
-    @classmethod
-    def roundToValidPrice(cls, symbol_data, desired_price, round_up:bool=False) -> Decimal:
-        #Returns min qty of symbol we can buy, closed to desired_price
+		self.signRequest(params)
 
-        pr_filter = {}
-        for fil in symbol_data['filters']:
-            if fil['filterType'] == 'PRICE_FILTER':
-                pr_filter = fil
-                break
-        
-        if not pr_filter.keys().__contains__('tickSize'):
-            raise Exception('Cant find tickSize or PRICE_FILTER in symbol_data.')
-            return
-        
-        round_off_num = int(cls.get10Factor((float(pr_filter['tickSize']))))
+		url = self.base + self.endpoints['allOrders']
 
-        num = round(Decimal(desired_price), round_off_num)
-        if round_up:
-            num = num + Decimal(pr_filter['tickSize'])
-        
-        return num
+		try: 
+			response = requests.get(url, params=params, headers=self.headers)
+			data = response.text
+		except Exception as e:
+			print("Exception occured when trying to get info on all orders on "+url)
+			print(e)
+			data = {'code': '-1', 'msg':e}
 
-    @classmethod
-    def roundToValidQty(cls, symbol_data, desired_quantity, round_up:bool=False):
-        #Returns min qty of a symbol we can buy, closest to desired price
-        lot_filter = {}
+		return json.loads(data)
 
-        for fil in symbol_data['filters']:
-            if fil['filterType'] == 'LOT_SIZE':
-                lot_filter = fil
-                break
-        
-        if not lot_filter.keys.__contains__('stepSize'):
-            raise Exception('Cant find stepSize or PRICE_FILTER in symbol_data.')
-            return
-        
-        round_off_num = int(cls.get10Factor((float(lot_filter['stepSize']))))
+	def signRequest(self, params:dict):
+		''' Signs the request to the Binance API '''
 
-        num = round(Decimal(desired_quantity), round_off_num)
-        if round_up:
-            num = num + Decimal(lot_filter['stepSize'])
-        
-        return num
+		query_string = '&'.join(["{}={}".format(d, params[d]) for d in params])
+		signature = hmac.new(self.binance_keys['secret_key'].encode('utf-8'), query_string.encode('utf-8'), hashlib.sha256)
+		params['signature'] = signature.hexdigest()
+	
+	@classmethod
+	def floatToString(cls, f:float):
+		''' Converts the given float to a string,
+		without resorting to the scientific notation '''
+
+		ctx = decimal.Context()
+		ctx.prec = 12
+		d1 = ctx.create_decimal(repr(f))
+		return format(d1, 'f')
+
+	@classmethod
+	def get10Factor(cls, num):
+		""" Returns the number of 0s before the first non-0 digit of a number 
+		(if |num| is < than 1) or negative the number of digits between the first 
+		integer digit and the last, (if |num| >= 1) 
+		
+		get10Factor(0.00000164763) = 6
+		get10Factor(1600623.3) = -6
+		"""
+		p = 0
+		for i in range(-20, 20):
+			if num == num % 10**i:
+				p = -(i - 1)
+				break
+		return p
+
+	@classmethod
+	def RoundToValidPrice(cls, symbol_data, desired_price, round_up:bool=False) -> Decimal:
+		""" Returns the minimum quantity of a symbol we can buy,
+		closest to desiredPrice """
+		
+		pr_filter = {}
+		
+		for fil in symbol_data["filters"]:
+			if fil["filterType"] == "PRICE_FILTER":
+				pr_filter = fil
+				break
+		
+		if not pr_filter.keys().__contains__("tickSize"):
+			raise Exception("Couldn't find tickSize or PRICE_FILTER in symbol_data.")
+			return
+
+		round_off_number = int(cls.get10Factor((float(pr_filter["tickSize"]))))
+
+		number = round(Decimal(desired_price), round_off_number)
+		if round_up:
+			number = number + Decimal(pr_filter["tickSize"])
+
+		return number
+
+	@classmethod
+	def RoundToValidQuantity(cls, symbol_data, desired_quantity, round_up:bool=False) -> Decimal:
+		""" Returns the minimum quantity of a symbol we can buy,
+		closest to desiredPrice """
+		
+		lot_filter = {}
+		
+		for fil in symbol_data["filters"]:
+			if fil["filterType"] == "LOT_SIZE":
+				lot_filter = fil
+				break
+		
+		if not lot_filter.keys().__contains__("stepSize"):
+			raise Exception("Couldn't find stepSize or PRICE_FILTER in symbol_data.")
+			return
+
+		round_off_number = int(cls.get10Factor((float(lot_filter["stepSize"]))))
+
+		number = round(Decimal(desired_quantity), round_off_number)
+		if round_up:
+			number = number + Decimal(lot_filter["stepSize"])
+
+		return number
 
 
 def Main():
-    symbol = 'NEOBTC'
-    client_id = '73a40bae-61c7-11ea-8e67-f40f241d61b4'
-    exchange = Binance('credentials.txt')
-    
-    d = exchange.getOrderInfo(symbol, client_id)
-    print(d)
+
+	symbol = 'NEOBTC'
+	client_id = '73a40bae-61c7-11ea-8e67-f40f241d61b4'
+	exchange = Binance('credentials.txt')
+
+	d = exchange.GetOrderInfo(symbol, client_id)
+	print(d)
+
 
 if __name__ == '__main__':
-    Main()
-
-
+	Main()

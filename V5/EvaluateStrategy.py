@@ -57,7 +57,10 @@ class EvaluateStrategy:
             #Check if bought
             if last_buy is None:
                 #Check if strategy is fulfilled
-                strategy_result = self.strategy(model.df, i)
+                try:
+                    strategy_result = self.strategy(model.df, i)
+                except Exception as e:
+                    pass
 
                 if strategy_result:
                     #If strat is fulfilled, buy the symbol/coin, set stop loss and take profit

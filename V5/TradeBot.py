@@ -8,11 +8,13 @@ from TradeModel import TradeModel
 import json
 from decimal import Decimal, getcontext
 
-#Backtest all strategies over symbols of choice
+#Backtest all strategies over symbols of choice, interval, quote assets can be customized
 #Updated in v4, make easier to customize
+#Shows summary of profitable and unprofitable strategies / trades
+#DO NOT USE TO EXECUTE STRATEGIES RIGHT NOW.
 def BackTestStrategies(
     symbols=[], interval = '4h', plot=False, strategy_evaluators=[],
-    options = dict(starting_balance = 100, initial_profits = 1.01, initial_stop_loss = 0.9,
+    options = dict(starting_balance = 100, initial_profits = 1.012, initial_stop_loss = 0.9,
     incremental_profits = 1.006, incremental_stop_loss = 0.996)):
 
     tested_coins = 0
@@ -95,10 +97,10 @@ incremental_profits = 1.006, incremental_stop_loss = 0.996)):
 
                 if answer == 'p':
                     print('\n Placing buy order now')
-                    #Need to update makeOrder func, since it will not know what symbol to buy beforehand
+                    #Need to update PlaceOrder func, since it will not know what symbol to buy beforehand
                     #Binance only allows min orders sizes above a certain amount, need to make sure we always buy
                     #Above that amount, depending on price of the quote asset
-                    order_result = model.exchange.makeOrder(model.symbol, "BUY", "MARKET", quantity=0.02, test=False)
+                    order_result = model.exchange.PlaceOrder(model.symbol, "BUY", "MARKET", quantity=0.02, test=False)
                     if 'code' in order_result:
                         print("\n Error.")
                         print(order_result)
@@ -113,12 +115,12 @@ starting_message = "Crypto Trading Bot. \n \
 
 def Main():
     exchange = Binance()
-    symbols = exchange.getTradeSymbols(quoteAssets=['ETH'])
+    symbols = exchange.GetTradingSymbols(quoteAssets=['ETH'])
 
     strategy_evaluators = [
-        #EvaluateStrategy(strategy_function=Strategies.bollStrategy),
-        #EvaluateStrategy(strategy_function=Strategies.maStrategy),
-        #EvaluateStrategy(strategy_function=Strategies.ichimokuBull)
+        EvaluateStrategy(strategy_function=strategies_dict['bollinger_simple']),
+        #EvaluateStrategy(strategy_function=strategies_dict.maStrategy),
+        EvaluateStrategy(strategy_function=strategies_dict['ichimoku_bullish']),
         EvaluateStrategy(strategy_function=strategies_dict['ma_crossover'])
     ]
     

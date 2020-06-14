@@ -13,7 +13,7 @@ class TradeModel:
         self.symbol = symbol
         self.timeframe = timeframe
         self.exchange = Binance()
-        self.df = self.exchange.getSymbolKlines(symbol, timeframe)
+        self.df = self.exchange.GetSymbolKlines(symbol, timeframe)
         self.last_price = self.df['close'][len(self.df['close']) -1]
         
     #For indicators, check if they are in the df to see what to plot
@@ -46,24 +46,24 @@ class TradeModel:
                     line= dict(color=(item['color'])))
                 data.append(ssma)
 
-        #indicators
-        # if df.__contains__('50_ema'):
-        #     #Adding MAs
-        #     ssma = pgo.Scatter(
-        #         x=df['time'],
-        #         y=df['50_ema'],
-        #         name='50 EMA',
-        #         line= dict(color=('rgba(102,207,255,50)')))
-        #     data.append(ssma)
+        indicators
+        if df.__contains__('50_ema'):
+            #Adding MAs
+            ssma = pgo.Scatter(
+                x=df['time'],
+                y=df['50_ema'],
+                name='50 EMA',
+                line= dict(color=('rgba(102,207,255,50)')))
+            data.append(ssma)
 
-        # if df.__contains__('200_ema'):
-        #     #Adding MAs
-        #     ssma = pgo.Scatter(
-        #         x=df['time'],
-        #         y=df['200_ema'],
-        #         name='200 EMA',
-        #         line= dict(color=('rgba(102,207,255,50)')))
-        #     data.append(ssma)
+        if df.__contains__('200_ema'):
+            #Adding MAs
+            ssma = pgo.Scatter(
+                x=df['time'],
+                y=df['200_ema'],
+                name='200 EMA',
+                line= dict(color=('rgba(102,207,255,50)')))
+            data.append(ssma)
 
         if df.__contains__('short_sma'):
             #Adding MAs
